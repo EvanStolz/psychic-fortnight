@@ -231,7 +231,7 @@ export async function analyzeExtension(
   if (file instanceof File || file instanceof Blob) {
     data = await file.arrayBuffer();
   } else if (file instanceof Uint8Array) {
-    data = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
+    data = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
   } else {
     data = file;
   }
