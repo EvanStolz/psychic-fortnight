@@ -404,7 +404,7 @@ export function analyzePermissions(permissions: string[], hostPermissions: strin
   const allPermissions = [...new Set([...permissions, ...hostPermissions])];
   const RISK_ORDER = { 'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
 
-  return allPermissions.map(p => {
+  return allPermissions.map((p): PermissionInfo => {
     if (PERMISSION_MAPPING[p]) {
       return {
         permission: p,
