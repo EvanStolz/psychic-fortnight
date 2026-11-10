@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+.env*
+!.env.example
+.DS_Store
+# Live-test downloads of real extensions; never committed
+test/live/.cache/
