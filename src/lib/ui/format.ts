@@ -29,15 +29,6 @@ export function findingTier(points: number, axis: Axis['name']): Tier | null {
   return points > 0 ? tierFor(points, axis === 'capability') : null;
 }
 
-/** Tinted tag class for a verdict. */
-export function verdictTone(verdict: Report['verdict']): string {
-  return verdict === 'approve' ? 'k1' : verdict === 'review' ? 'k4' : 'k5';
-}
-
-export function verdictName(verdict: Report['verdict']): string {
-  return verdict === 'approve' ? 'Approve' : verdict === 'review' ? 'Review' : 'Deny';
-}
-
 export function megabytes(bytes: number): string {
   const mb = bytes / 1024 / 1024;
   return `${mb < 10 ? mb.toFixed(2) : mb.toFixed(1)} MB`;
@@ -77,7 +68,7 @@ export function metaLine(report: Report): string {
   return parts.join(' · ');
 }
 
-/** What the verdict tag's small line says. A hard fail is explained in its own section above. */
+/** The grey line under the title. A hard fail is explained in its own section below. */
 export function verdictWhy(report: Report): string {
   if (report.hardFails.length > 0) return report.hardFails.length === 1 ? 'Hard fail' : `${report.hardFails.length} hard fails`;
   return report.reasons.join(', ');
@@ -113,27 +104,20 @@ export function axisNotes(axis: Axis): string[] {
   return [...notes, ...axis.gaps];
 }
 
-/** What a library row says about a decision: the engine's summary, then the reviewer's own reason if any. */
-export function decisionSummary(report: Report): string {
+/** The engine's short summary of a report, saved with a library entry. */
+export function reportSummary(report: Report): string {
   return report.hardFails.length > 0 ? report.hardFails.map((f) => f.label).join(', ') : report.reasons.join(', ');
 }
 
+/** A library row's grey line: the summary, then the version. */
 export function entryLine(e: Entry): string {
-  const summary = e.summary || `${verdictName(e.verdict)} verdict`;
-  return e.reason ? `${summary} · ${e.reason}` : summary;
+  return e.summary ? `${e.summary} · v${e.version}` : `v${e.version}`;
 }
 
-const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+const WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
 
-function word(n: number): string {
-  return WORDS[n] ?? thousands(n);
-}
-
-/** "Two approved, one denied. Kept in this browser, never on our servers." */
-export function libraryCount(list: Entry[]): string {
-  const approved = list.filter((e) => e.decision === 'approved').length;
-  const denied = list.length - approved;
-  const parts = [approved > 0 ? `${word(approved)} approved` : '', denied > 0 ? `${word(denied)} denied` : ''].filter(Boolean);
-  const head = parts.length > 0 ? parts.join(', ') : 'nothing saved yet';
-  return `${head.charAt(0).toUpperCase()}${head.slice(1)}. Kept in this browser, never on our servers.`;
+/** "Three extensions, kept only in this browser." */
+export function libraryCount(count: number, keep: boolean): string {
+  const n = `${WORDS[count] ?? thousands(count)} ${count === 1 ? 'extension' : 'extensions'}`;
+  return keep ? `${n}, kept only in this browser.` : `${n}, kept in this tab only.`;
 }

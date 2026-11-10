@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { Report } from '@/lib/engine/types';
-import { classic, LabArt, noseDown } from './LabArt';
+import { setSniffing } from '@/lib/ui/sniff';
 import { Foot } from './Nav';
 import { ReportView } from './ReportView';
 
@@ -52,6 +52,11 @@ export function Check() {
     return () => controller.abort();
   }, [q]);
 
+  // The header dog sniffs while a check runs and while its report is on screen.
+  const sniffing = state.kind === 'loading' || state.kind === 'done';
+  useEffect(() => setSniffing(sniffing), [sniffing]);
+  useEffect(() => () => setSniffing(false), []);
+
   const submit = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -84,11 +89,6 @@ export function Check() {
         }}
       >
         <div className="sbox">
-          {/* Both drawings share one cell so the box never moves; the dog sniffs while a check runs. */}
-          <div className="sniff">
-            <LabArt art={classic} size={3} className={state.kind === 'loading' ? 'off' : undefined} />
-            <LabArt art={noseDown} size={3} className={state.kind === 'loading' ? undefined : 'off'} />
-          </div>
           <label htmlFor="q" className="sr">
             Store link or extension ID
           </label>
@@ -133,7 +133,7 @@ export function Check() {
           <rect x="4" y="11" width="16" height="10" rx="2" />
           <path d="M8 11V7a4 4 0 0 1 8 0v4" />
         </svg>
-        Your approvals stay in your browser. We never store who approved what.
+        Your data stays in your browser, we don&apos;t keep anything.
       </p>
 
       {state.kind === 'loading' ? (

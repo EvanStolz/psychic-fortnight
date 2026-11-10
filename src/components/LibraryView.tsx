@@ -3,34 +3,19 @@
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { download } from '@/lib/ui/download';
+import { EXPORTS, exportText } from '@/lib/ui/exports';
 import { day, entryLine, libraryCount } from '@/lib/ui/format';
 import type { Entry } from '@/lib/ui/list';
-import { keyOf, ListFileError, parseListFile, remove, serialise } from '@/lib/ui/list';
-import type { PolicyBrowser } from '@/lib/ui/policy';
-import { chromiumPolicy, firefoxPolicy, plainWords } from '@/lib/ui/policy';
+import { keyOf, ListFileError, parseListFile, remove } from '@/lib/ui/list';
 import { useList } from '@/lib/ui/useList';
 import { dozedOff, LabArt } from './LabArt';
 import { Foot } from './Nav';
 
-type Browser = 'chrome' | 'edge' | 'firefox';
-
-const BROWSERS: { id: Browser; label: string }[] = [
-  { id: 'chrome', label: 'Chrome' },
-  { id: 'edge', label: 'Edge' },
-  { id: 'firefox', label: 'Firefox' },
-];
-
-const DEPLOY_HELP: Record<Browser, string> = {
-  chrome: 'https://chromeenterprise.google/policies/#ExtensionSettings',
-  edge: 'https://learn.microsoft.com/en-us/deployedge/microsoft-edge-manage-extensions-ref-guide',
-  firefox: 'https://mozilla.github.io/policy-templates/#extensionsettings',
-};
-
 export function LibraryView() {
-  const { list, ready, update } = useList();
+  const { list, ready, keep, setKeep, update } = useList();
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<{ text: string; bad: boolean } | null>(null);
-  // Newest decision first. The sort is stable, so same-day decisions keep the order they were made in.
+  // Newest first. The sort is stable, so extensions added the same day keep the order they were added in.
   const rows = [...list].sort((a, b) => b.date.localeCompare(a.date));
 
   const open = async (file: File) => {
@@ -45,32 +30,47 @@ export function LibraryView() {
     }
   };
 
+  const toggleKeep = () => {
+    if (!setKeep(!keep)) setMessage({ text: 'This browser is blocking storage, so the library stays in this tab only.', bad: true });
+    else setMessage(null);
+  };
+
   return (
-    <div className="wrap wide">
+    <div className="wrap">
       <div className="libhead">
         <div>
           <h1>Your library</h1>
-          <div className="meta">{ready ? libraryCount(list) : 'Kept in this browser, never on our servers.'}</div>
+          <div className="meta">{ready ? libraryCount(list.length, keep) : ' '}</div>
         </div>
-        <div className="libbtns">
-          <button type="button" className="try" onClick={() => fileRef.current?.click()}>
-            Import
-          </button>
-          <button type="button" className="try" disabled={list.length === 0} onClick={() => download('crx-sniffer-library.json', serialise(list))}>
-            Back up
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".json,application/json"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = '';
-              if (file) void open(file);
-            }}
-          />
+        <button type="button" className="try" onClick={() => fileRef.current?.click()}>
+          Import
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void open(file);
+          }}
+        />
+      </div>
+
+      <div className="libtools">
+        <div className="saveas">
+          <span className="muted">Save as</span>
+          {EXPORTS.map((x) => (
+            <button key={x.kind} type="button" className="try" disabled={list.length === 0} onClick={() => download(x.file, exportText(x.kind, rows), x.type)}>
+              {x.label}
+            </button>
+          ))}
         </div>
+        <label className="keep">
+          <span>Remember in this browser</span>
+          <input type="checkbox" role="switch" className="switch" checked={keep} onChange={toggleKeep} />
+        </label>
       </div>
       {message ? (
         <p className={message.bad ? 'error' : 'note'} role="status">
@@ -78,33 +78,20 @@ export function LibraryView() {
         </p>
       ) : null}
 
-      <div className="libcols">
-        <section className="card libcard" aria-label="Saved extensions">
-          {ready && rows.length === 0 ? (
-            <div className="empty">
-              <LabArt art={dozedOff} size={3.5} />
-              <p>
-                Nothing here yet. <Link href="/">Check an extension</Link> to add it.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="libbar">
-                <span>
-                  {rows.length} {rows.length === 1 ? 'extension' : 'extensions'}
-                </span>
-                <span>Newest first</span>
-              </div>
-              {rows.map((e) => (
-                <Row key={keyOf(e)} entry={e} onRemove={() => update(remove(list, keyOf(e)))} />
-              ))}
-            </>
-          )}
-        </section>
-        <PolicyCard list={list} />
-      </div>
+      <section className="card libcard" aria-label="Saved extensions">
+        {ready && rows.length === 0 ? (
+          <div className="empty">
+            <LabArt art={dozedOff} size={3.5} />
+            <p>
+              Nothing here yet. <Link href="/">Check an extension</Link> to add it.
+            </p>
+          </div>
+        ) : (
+          rows.map((e) => <Row key={keyOf(e)} entry={e} onRemove={() => update(remove(list, keyOf(e)))} />)
+        )}
+      </section>
 
-      <Foot spaced />
+      <Foot spaced extra={keep ? undefined : 'Nothing is stored. Reloading the page clears the library.'} />
     </div>
   );
 }
@@ -114,7 +101,7 @@ function Row({ entry: e, onRemove }: { entry: Entry; onRemove: () => void }) {
   const line = entryLine(e);
   return (
     <div className="lib">
-      {/* The icon is a data URL saved with the decision; next/image adds nothing for it. */}
+      {/* The icon is a data URL saved with the extension; next/image adds nothing for it. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {e.icon ? <img className="ico" src={e.icon} alt="" /> : <span className="ico letter" aria-hidden="true">{e.name.charAt(0).toUpperCase()}</span>}
       <div className="who">
@@ -123,83 +110,12 @@ function Row({ entry: e, onRemove }: { entry: Entry; onRemove: () => void }) {
           {line}
         </div>
       </div>
-      <span className={e.decision === 'approved' ? 'tag k1' : 'tag k5'}>{e.decision === 'approved' ? 'Approved' : 'Denied'}</span>
-      <span className="when hide-sm">{day(e.date, true)}</span>
+      <span className="when">{day(e.date, true)}</span>
       <button type="button" className="x" onClick={onRemove} aria-label={`Remove ${e.name}`} title="Remove">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M6 6l12 12M18 6L6 18" />
         </svg>
       </button>
     </div>
-  );
-}
-
-function PolicyCard({ list }: { list: Entry[] }) {
-  const [browser, setBrowser] = useState<Browser>('chrome');
-  const [blockAll, setBlockAll] = useState(true);
-  const [protect, setProtect] = useState(false);
-  const [showFile, setShowFile] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  // Chrome and Edge read the same ExtensionSettings policy, so they share one file.
-  const kind: PolicyBrowser = browser === 'firefox' ? 'firefox' : 'chromium';
-  const opts = { blockAll, protect };
-  const json = JSON.stringify(kind === 'chromium' ? chromiumPolicy(list, opts) : firefoxPolicy(list, opts), null, 2);
-  const fileName = kind === 'chromium' ? 'ExtensionSettings.json' : 'policies.json';
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(json);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return (
-    <aside className="card policy" aria-label="Policy file">
-      <h2 className="ctitle">Policy file</h2>
-      <div className="seg" role="group" aria-label="Browser">
-        {BROWSERS.map((b) => (
-          <button key={b.id} type="button" className={browser === b.id ? 'on' : ''} aria-pressed={browser === b.id} onClick={() => setBrowser(b.id)}>
-            {b.label}
-          </button>
-        ))}
-      </div>
-      <div className="opts">
-        <label className="opt">
-          <span>Block everything not approved</span>
-          <input type="checkbox" role="switch" className="switch" checked={blockAll} onChange={() => setBlockAll((v) => !v)} />
-        </label>
-        <label className="opt">
-          <span>Keep extensions off sign-in and mail pages</span>
-          <input type="checkbox" role="switch" className="switch" checked={protect} onChange={() => setProtect((v) => !v)} />
-        </label>
-      </div>
-      <div className="plain">
-        <div className="k">In plain words</div>
-        {plainWords(list, kind, opts)}
-      </div>
-      <button type="button" className="btn wide" onClick={() => download(fileName, `${json}\n`)}>
-        Download policy file
-      </button>
-      <div className="plinks">
-        <button type="button" className="linkbtn" aria-expanded={showFile} onClick={() => setShowFile((v) => !v)}>
-          {showFile ? 'Hide the file' : 'Show the file'}
-        </button>
-        <button type="button" className="linkbtn" onClick={() => void copy()}>
-          {copied ? 'Copied' : 'Copy'}
-        </button>
-        <a href={DEPLOY_HELP[browser]} rel="noopener noreferrer" target="_blank">
-          How to deploy it
-        </a>
-      </div>
-      {showFile ? (
-        <pre className="code" aria-label={fileName}>
-          {json}
-        </pre>
-      ) : null}
-    </aside>
   );
 }

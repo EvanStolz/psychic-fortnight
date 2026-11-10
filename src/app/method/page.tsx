@@ -58,26 +58,6 @@ export default function MethodPage() {
       <h1>Method</h1>
       <div className="meta">Rules v{RULES_VERSION}</div>
 
-      <h2>Verdict</h2>
-      <div className="r">
-        <span className="p">
-          <span className="tag k5">Deny</span>
-        </span>
-        <span>Any hard fail, or Code, Reputation or Change at Critical</span>
-      </div>
-      <div className="r">
-        <span className="p">
-          <span className="tag k4">Review</span>
-        </span>
-        <span>Capability at Critical, another axis at Medium or worse, or a check that couldn&apos;t run</span>
-      </div>
-      <div className="r">
-        <span className="p">
-          <span className="tag k1">Approve</span>
-        </span>
-        <span>Everything else</span>
-      </div>
-
       <h2>Tiers</h2>
       {(
         [
@@ -102,7 +82,7 @@ export default function MethodPage() {
             {col.map((label) => (
               <div className="r" key={label}>
                 <span className="p">
-                  <span className="tag k5">Deny</span>
+                  <span className="dot f5" aria-hidden="true" />
                 </span>
                 <span>{label}</span>
               </div>

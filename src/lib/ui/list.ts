@@ -1,12 +1,10 @@
-// The reviewer's list of decisions. It lives only in this browser and in files the reviewer saves; the server never
-// sees it.
+// The reviewer's library of checked extensions. It lives only in this browser (and only if they allow it) and in
+// files they save; the server never sees it.
 
-import type { Store, VerdictName } from '@/lib/engine/types';
+import type { Store } from '@/lib/engine/types';
 
 export const STORAGE_KEY = 'crx-sniffer:list:v1';
 export const FILE_FORMAT = 'crx-sniffer-list';
-
-export type Decision = 'approved' | 'denied';
 
 export interface Entry {
   store: Store | null;
@@ -14,12 +12,9 @@ export interface Entry {
   name: string;
   version: string;
   icon: string | null;
-  decision: Decision;
-  verdict: VerdictName;
-  reason: string;
-  /** The engine's verdict summary when the decision was made, such as "Capability High, all else Low". */
+  /** The engine's summary when the extension was added, such as "Capability High, all else Low". */
   summary: string;
-  /** ISO date of the decision. */
+  /** ISO date it was added. */
   date: string;
   rulesVersion: number;
   publisher: string | null;
@@ -28,10 +23,9 @@ export interface Entry {
 export class ListFileError extends Error {}
 
 const STORES = new Set(['chrome', 'edge', 'firefox']);
-const VERDICTS = new Set(['approve', 'review', 'deny']);
 const MAX_ENTRIES = 5000;
 
-/** Same store and ID means the same extension; a later decision replaces an earlier one. */
+/** Same store and ID means the same extension; adding it again replaces the older copy. */
 export function keyOf(e: Pick<Entry, 'store' | 'id'>): string {
   return `${e.store ?? 'upload'}:${e.id}`;
 }
@@ -45,19 +39,22 @@ export function remove(list: Entry[], key: string): Entry[] {
 }
 
 export function serialise(list: Entry[]): string {
-  return `${JSON.stringify({ format: FILE_FORMAT, version: 1, entries: list }, null, 2)}\n`;
+  return `${JSON.stringify({ format: FILE_FORMAT, version: 2, entries: list }, null, 2)}\n`;
 }
 
-/** Reads a saved list file. Every field is checked, since the file may come from anyone. */
+/**
+ * Reads a saved library file. Every field is checked, since the file may come from anyone. Version 1 files also
+ * carried an approve or deny decision; those fields are ignored.
+ */
 export function parseListFile(text: string): Entry[] {
   let data: unknown;
   try {
     data = JSON.parse(text);
   } catch {
-    throw new ListFileError('That file is not a saved list.');
+    throw new ListFileError('That file is not a saved library.');
   }
-  if (!isRecord(data) || data.format !== FILE_FORMAT || !Array.isArray(data.entries)) throw new ListFileError('That file is not a saved list.');
-  if (data.entries.length > MAX_ENTRIES) throw new ListFileError(`A list can hold up to ${MAX_ENTRIES} extensions.`);
+  if (!isRecord(data) || data.format !== FILE_FORMAT || !Array.isArray(data.entries)) throw new ListFileError('That file is not a saved library.');
+  if (data.entries.length > MAX_ENTRIES) throw new ListFileError(`A library can hold up to ${MAX_ENTRIES} extensions.`);
   return data.entries.map((raw, i) => {
     const e = readEntry(raw);
     if (!e) throw new ListFileError(`Entry ${i + 1} in the file is not valid.`);
@@ -67,14 +64,10 @@ export function parseListFile(text: string): Entry[] {
 
 function readEntry(raw: unknown): Entry | null {
   if (!isRecord(raw)) return null;
-  const { store, id, name, version, icon, decision, verdict, reason, summary = '', date, rulesVersion, publisher } = raw;
+  const { store, id, name, version, icon, summary = '', date, rulesVersion, publisher } = raw;
   if (store !== null && !(typeof store === 'string' && STORES.has(store))) return null;
   if (typeof id !== 'string' || !/^[\w@.{}~-]{1,200}$/.test(id)) return null;
-  if (typeof name !== 'string' || typeof version !== 'string' || typeof reason !== 'string' || typeof date !== 'string') return null;
-  // Lists saved before summaries existed have none.
-  if (typeof summary !== 'string') return null;
-  if (decision !== 'approved' && decision !== 'denied') return null;
-  if (typeof verdict !== 'string' || !VERDICTS.has(verdict)) return null;
+  if (typeof name !== 'string' || typeof version !== 'string' || typeof summary !== 'string' || typeof date !== 'string') return null;
   if (icon !== null && !(typeof icon === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(icon))) return null;
   if (typeof rulesVersion !== 'number' || (publisher !== null && typeof publisher !== 'string')) return null;
   if (Number.isNaN(Date.parse(date))) return null;
@@ -84,9 +77,6 @@ function readEntry(raw: unknown): Entry | null {
     name: name.slice(0, 200),
     version: version.slice(0, 64),
     icon,
-    decision,
-    verdict: verdict as VerdictName,
-    reason: reason.slice(0, 500),
     summary: summary.slice(0, 300),
     date,
     rulesVersion,
@@ -94,7 +84,7 @@ function readEntry(raw: unknown): Entry | null {
   };
 }
 
-/** Loads the list from this browser. Storage can be missing or blocked, so failures read as an empty list. */
+/** Loads the library from this browser. Storage can be missing or blocked, so failures read as an empty library. */
 export function load(): Entry[] {
   try {
     const text = window.localStorage.getItem(STORAGE_KEY);
@@ -110,6 +100,15 @@ export function save(list: Entry[]): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Deletes the stored library. */
+export function forget(): void {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Nothing stored, or storage is blocked; either way nothing is kept.
   }
 }
 

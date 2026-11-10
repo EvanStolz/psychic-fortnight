@@ -15,17 +15,14 @@ import {
   TIER_STEPS,
   tierFill,
   tierText,
-  verdictName,
-  verdictTone,
   verdictWhy,
 } from '@/lib/ui/format';
-import { Decide } from './Decide';
+import { AddToLibrary } from './AddToLibrary';
 
 const ORDER: Axis['name'][] = ['capability', 'code', 'reputation', 'change'];
 
 export function ReportView({ report }: { report: Report }) {
   const [open, setOpen] = useState<Partial<Record<Axis['name'], boolean>>>({});
-  const [deciding, setDeciding] = useState<'approved' | 'denied' | null>(null);
   const pkg = report.package;
 
   return (
@@ -36,7 +33,7 @@ export function ReportView({ report }: { report: Report }) {
           {report.hardFails.map((f) => (
             <div className="hard" key={f.rule}>
               <span>
-                <span className="tag k5">Deny</span>
+                <span className="dot f5" aria-hidden="true" />
               </span>
               <span>
                 {f.label}. {f.detail}{' '}
@@ -60,12 +57,10 @@ export function ReportView({ report }: { report: Report }) {
           <div className="meta">{metaLine(report)}</div>
         </div>
         <div className="vbox">
-          <div className={`verdict tag ${verdictTone(report.verdict)}`}>{verdictName(report.verdict)}</div>
+          <AddToLibrary report={report} />
           <div className="vwhy">{verdictWhy(report)}</div>
-          <Decide.Links report={report} onPick={setDeciding} />
         </div>
       </div>
-      {deciding ? <Decide.Form report={report} decision={deciding} onDone={() => setDeciding(null)} /> : null}
 
       <div className="axes">
         {ORDER.map((name) => {

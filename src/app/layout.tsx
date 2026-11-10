@@ -9,10 +9,10 @@ const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: '400', variable: '--fon
 
 export const metadata: Metadata = {
   title: 'CRX Sniffer',
-  description: 'Vet browser extension requests: a verdict, the math behind it, and policy export.',
+  description: 'Check browser extensions: what they can reach, what their code does, and the math behind it.',
 };
 
-export const viewport: Viewport = { themeColor: '#1b6879', width: 'device-width', initialScale: 1 };
+export const viewport: Viewport = { themeColor: '#15171a', width: 'device-width', initialScale: 1 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (

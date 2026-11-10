@@ -1,25 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import type { Axis, Report } from '@/lib/engine/types';
 import { classic, dozedOff, noseDown } from '@/components/LabArt';
+import type { Axis, Report } from '@/lib/engine/types';
+import { toCsv, toMarkdown, toTxt } from './exports';
 import { axisNotes, axisSummary, compact, day, entryLine, findingTier, libraryCount, megabytes, metaLine, verdictWhy } from './format';
 import type { Entry } from './list';
 import { keyOf, ListFileError, parseListFile, serialise, upsert } from './list';
-import { chromiumPolicy, firefoxPolicy, plainWords } from './policy';
 
 const entry = (over: Partial<Entry>): Entry => ({
-  store: 'chrome', id: 'eimadpbcbfnmbkopoojfekhnkhdbieeh', name: 'Dark Reader', version: '4.9.135', icon: null, decision: 'approved',
-  verdict: 'approve', reason: 'Dark mode', summary: 'All axes Low', date: '2026-11-09', rulesVersion: 1, publisher: 'Dark Reader Ltd', ...over,
+  store: 'chrome', id: 'eimadpbcbfnmbkopoojfekhnkhdbieeh', name: 'Dark Reader', version: '4.9.135', icon: null,
+  summary: 'All axes Low', date: '2026-11-09', rulesVersion: 1, publisher: 'Dark Reader Ltd', ...over,
 });
 
-describe('list', () => {
-  it('round-trips through a saved file and replaces earlier decisions', () => {
-    const list = upsert([entry({})], entry({ decision: 'denied', reason: 'Changed mind' }));
+describe('library file', () => {
+  it('round-trips through a saved file and replaces an older copy', () => {
+    const list = upsert([entry({})], entry({ version: '4.9.136' }));
     expect(list).toHaveLength(1);
     expect(parseListFile(serialise(list))).toEqual(list);
     expect(keyOf(entry({ store: null, id: 'x' }))).toBe('upload:x');
   });
 
-  it('rejects files that are not lists or hold bad entries', () => {
+  it('rejects files that are not libraries or hold bad entries', () => {
     expect(() => parseListFile('nope')).toThrow(ListFileError);
     expect(() => parseListFile('{"format":"other","entries":[]}')).toThrow(ListFileError);
     const bad = JSON.parse(serialise([entry({})])) as { entries: Record<string, unknown>[] };
@@ -28,22 +28,20 @@ describe('list', () => {
     expect(() => parseListFile(JSON.stringify(bad))).toThrow('Entry 1');
   });
 
-  it('reads lists saved before entries had a summary', () => {
-    const old = JSON.parse(serialise([entry({})])) as { entries: Record<string, unknown>[] };
-    delete old.entries[0]?.summary;
-    expect(parseListFile(JSON.stringify(old))[0]?.summary).toBe('');
+  it('reads version 1 files, which had decisions and no summary', () => {
+    const v1 = { format: 'crx-sniffer-list', version: 1, entries: [{ ...entry({}), decision: 'approved', verdict: 'approve', reason: 'Dark mode', summary: undefined }] };
+    expect(parseListFile(JSON.stringify(v1))).toEqual([entry({ summary: '' })]);
   });
 });
 
 describe('library lines', () => {
-  it('counts decisions in words and builds each row from the engine summary', () => {
-    expect(libraryCount([entry({}), entry({ id: 'b' }), entry({ id: 'c', decision: 'denied' })])).toBe(
-      'Two approved, one denied. Kept in this browser, never on our servers.',
-    );
-    expect(libraryCount([])).toBe('Nothing saved yet. Kept in this browser, never on our servers.');
-    expect(libraryCount(Array.from({ length: 12 }, (_, i) => entry({ id: String(i) })))).toMatch(/^12 approved\./);
-    expect(entryLine(entry({}))).toBe('All axes Low · Dark mode');
-    expect(entryLine(entry({ summary: '', reason: '', verdict: 'review' }))).toBe('Review verdict');
+  it('counts extensions in words and builds each row from the engine summary', () => {
+    expect(libraryCount(3, true)).toBe('Three extensions, kept only in this browser.');
+    expect(libraryCount(1, false)).toBe('One extension, kept in this tab only.');
+    expect(libraryCount(12, true)).toMatch(/^12 extensions/);
+    expect(libraryCount(0, true)).toMatch(/^No extensions/);
+    expect(entryLine(entry({}))).toBe('All axes Low · v4.9.135');
+    expect(entryLine(entry({ summary: '' }))).toBe('v4.9.135');
   });
 
   it('gives each finding the tier its points would earn on its axis', () => {
@@ -53,54 +51,33 @@ describe('library lines', () => {
   });
 });
 
+describe('library exports', () => {
+  const list = [entry({}), entry({ store: 'firefox', id: 'addon@darkreader.org', name: '=HYPERLINK("x") | "quoted"', publisher: null })];
+
+  it('writes CSV a spreadsheet opens safely', () => {
+    const lines = toCsv(list).replace(/^﻿/, '').trimEnd().split('\r\n');
+    expect(lines[0]).toBe('"Name","Store","ID","Version","Publisher","Summary","Added","Store link"');
+    expect(lines[1]).toBe(
+      '"Dark Reader","Chrome","eimadpbcbfnmbkopoojfekhnkhdbieeh","4.9.135","Dark Reader Ltd","All axes Low","2026-11-09","https://chromewebstore.google.com/detail/eimadpbcbfnmbkopoojfekhnkhdbieeh"',
+    );
+    expect(lines[2]).toMatch(/^"'=HYPERLINK\(""x""\) \| ""quoted""","Firefox"/);
+  });
+
+  it('writes one ID per line and a Markdown table', () => {
+    expect(toTxt(list)).toBe('eimadpbcbfnmbkopoojfekhnkhdbieeh\naddon@darkreader.org\n');
+    expect(toTxt([])).toBe('');
+    const md = toMarkdown(list).split('\n');
+    expect(md[2]).toBe('| [Dark Reader](https://chromewebstore.google.com/detail/eimadpbcbfnmbkopoojfekhnkhdbieeh) | Chrome | 4.9.135 | `eimadpbcbfnmbkopoojfekhnkhdbieeh` | All axes Low |');
+    expect(md[3]).toContain('\| "quoted"');
+  });
+});
+
 describe('lab art', () => {
   it('keeps the drawings intact', () => {
     for (const [art, lines] of [[classic, 30], [noseDown, 18], [dozedOff, 20]] as const) {
       expect(art).toMatch(/^[ ░▒▓█\n]+$/);
       expect(art.split('\n')).toHaveLength(lines);
     }
-  });
-});
-
-describe('policy files', () => {
-  const list = [
-    entry({}),
-    entry({ id: 'odgjppimodflifpnljdlhilfjpdemfbe', name: 'VPN Secret', decision: 'denied' }),
-    entry({ store: 'firefox', id: 'addon@darkreader.org' }),
-  ];
-
-  it('builds Chrome and Edge ExtensionSettings', () => {
-    expect(chromiumPolicy(list, { blockAll: true, protect: false })).toEqual({
-      ExtensionSettings: {
-        '*': { installation_mode: 'blocked', blocked_install_message: 'Request extensions through IT.' },
-        eimadpbcbfnmbkopoojfekhnkhdbieeh: { installation_mode: 'allowed' },
-        odgjppimodflifpnljdlhilfjpdemfbe: { installation_mode: 'removed' },
-      },
-    });
-    const guarded = chromiumPolicy(list, { blockAll: false, protect: true }).ExtensionSettings;
-    expect(guarded['*']).toBeUndefined();
-    expect(guarded.eimadpbcbfnmbkopoojfekhnkhdbieeh?.runtime_blocked_hosts).toContain('*://*.okta.com');
-  });
-
-  it('builds Firefox policies.json with sign-in domains on the default entry only', () => {
-    const p = firefoxPolicy(list, { blockAll: true, protect: true }).policies.ExtensionSettings;
-    expect(p['*']).toMatchObject({ installation_mode: 'blocked', restricted_domains: expect.arrayContaining(['okta.com', 'mail.google.com']) as unknown });
-    expect(p['addon@darkreader.org']).toEqual({ installation_mode: 'allowed' });
-    expect(Object.keys(p)).toHaveLength(2);
-  });
-
-  it('says what the file does in plain words', () => {
-    const three = [...list, entry({ id: 'kbfnbcaeplbcioakkpcpgfkobkghlhen', name: 'Grammarly' })];
-    expect(plainWords(three, 'chromium', { blockAll: true, protect: false })).toBe(
-      'Allows Dark Reader and Grammarly. Blocks and removes VPN Secret, and blocks every other extension, with the message "Request extensions through IT."',
-    );
-    expect(plainWords(list, 'firefox', { blockAll: true, protect: true })).toBe(
-      'Allows Dark Reader. Blocks every other extension, with the message "Request extensions through IT." Keeps every extension off sign-in and mail pages.',
-    );
-    expect(plainWords(list, 'chromium', { blockAll: false, protect: true })).toBe(
-      'Allows Dark Reader. Blocks and removes VPN Secret. Other extensions stay allowed. Keeps it off sign-in and mail pages.',
-    );
-    expect(plainWords([], 'firefox', { blockAll: false, protect: false })).toBe('Changes nothing yet.');
   });
 });
 
