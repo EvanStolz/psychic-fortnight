@@ -5,8 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const PAGES = [
   { href: '/', label: 'Check' },
-  { href: '/list', label: 'List' },
-  { href: '/export', label: 'Export' },
+  { href: '/library', label: 'Library' },
 ];
 
 // The dog stays exactly as drawn.

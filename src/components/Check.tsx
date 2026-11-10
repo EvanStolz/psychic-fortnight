@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { Report } from '@/lib/engine/types';
+import { classic, LabArt, noseDown } from './LabArt';
 import { Foot } from './Nav';
 import { ReportView } from './ReportView';
 
@@ -82,18 +83,25 @@ export function Check() {
           submit(input);
         }}
       >
-        <label htmlFor="q" className="sr">
-          Store link or extension ID
-        </label>
-        <input
-          id="q"
-          className="input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Store link or extension ID"
-          autoComplete="off"
-          spellCheck={false}
-        />
+        <div className="sbox">
+          {/* Both drawings share one cell so the box never moves; the dog sniffs while a check runs. */}
+          <div className="sniff">
+            <LabArt art={classic} size={3} className={state.kind === 'loading' ? 'off' : undefined} />
+            <LabArt art={noseDown} size={3} className={state.kind === 'loading' ? undefined : 'off'} />
+          </div>
+          <label htmlFor="q" className="sr">
+            Store link or extension ID
+          </label>
+          <input
+            id="q"
+            className="input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Store link or extension ID"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
         <button type="submit" className="btn" disabled={state.kind === 'loading'}>
           Check
         </button>
@@ -112,16 +120,21 @@ export function Check() {
           }}
         />
       </form>
-      <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 6, alignItems: 'center' }}>
-        <span className="muted" style={{ fontSize: 13, marginRight: 4 }}>
-          Try
-        </span>
+      <div className="tryrow">
+        <span className="muted">Try</span>
         {EXAMPLES.map((e) => (
-          <button key={e.label} type="button" className={q === e.q ? 'ex on' : 'ex'} onClick={() => submit(e.q)}>
+          <button key={e.label} type="button" className={q === e.q ? 'try on' : 'try'} aria-pressed={q === e.q} onClick={() => submit(e.q)}>
             {e.label}
           </button>
         ))}
       </div>
+      <p className="lock">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <rect x="4" y="11" width="16" height="10" rx="2" />
+          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+        Your approvals stay in your browser. We never store who approved what.
+      </p>
 
       {state.kind === 'loading' ? (
         <p className="note" role="status">
@@ -135,7 +148,7 @@ export function Check() {
       ) : null}
       {state.kind === 'done' ? <ReportView key={`${state.report.id}:${state.report.package?.version}`} report={state.report} /> : null}
 
-      <Foot spaced={state.kind !== 'done'} extra="Your list stays in this browser. Uploaded files never leave it." />
+      <Foot spaced={state.kind !== 'done'} extra="Uploaded files never leave this browser." />
     </div>
   );
 }

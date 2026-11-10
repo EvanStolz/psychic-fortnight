@@ -32,7 +32,7 @@ function Rows({ rows }: { rows: Row[] }) {
         <div key={i}>
           {col.map(([p, text]) => (
             <div className="r" key={`${p}${text}`}>
-              <span className={p === '?' ? 'p f4' : 'p'}>{p}</span>
+              <span className="p">{p === '?' ? <span className="tag k4">?</span> : p}</span>
               <span>{text}</span>
             </div>
           ))}
@@ -60,15 +60,21 @@ export default function MethodPage() {
 
       <h2>Verdict</h2>
       <div className="r">
-        <span className="p f5">Deny</span>
+        <span className="p">
+          <span className="tag k5">Deny</span>
+        </span>
         <span>Any hard fail, or Code, Reputation or Change at Critical</span>
       </div>
       <div className="r">
-        <span className="p f4">Review</span>
+        <span className="p">
+          <span className="tag k4">Review</span>
+        </span>
         <span>Capability at Critical, another axis at Medium or worse, or a check that couldn&apos;t run</span>
       </div>
       <div className="r">
-        <span className="p f1">Approve</span>
+        <span className="p">
+          <span className="tag k1">Approve</span>
+        </span>
         <span>Everything else</span>
       </div>
 
@@ -82,7 +88,7 @@ export default function MethodPage() {
         <div className="tiers" key={k}>
           <span className="k">{k}</span>
           {r.map((v, i) => (
-            <span key={v} className={`f${i + 2}`}>
+            <span key={v} className={`t${i + 2}`}>
               {v}
             </span>
           ))}
@@ -95,7 +101,9 @@ export default function MethodPage() {
           <div key={i}>
             {col.map((label) => (
               <div className="r" key={label}>
-                <span className="p f5">Deny</span>
+                <span className="p">
+                  <span className="tag k5">Deny</span>
+                </span>
                 <span>{label}</span>
               </div>
             ))}

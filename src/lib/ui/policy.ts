@@ -48,3 +48,43 @@ export function firefoxPolicy(list: Entry[], opts: PolicyOptions): { policies: {
 function sorted(list: Entry[], keep: (e: Entry) => boolean): Entry[] {
   return list.filter(keep).sort((a, b) => a.name.localeCompare(b.name));
 }
+
+export type PolicyBrowser = 'chromium' | 'firefox';
+
+export function forBrowser(list: Entry[], browser: PolicyBrowser): Entry[] {
+  return sorted(list, (e) => (browser === 'firefox' ? e.store === 'firefox' : e.store === 'chrome' || e.store === 'edge'));
+}
+
+/** "A, B and 3 more" */
+function names(list: Entry[]): string {
+  const shown = list.slice(0, list.length > 4 ? 3 : 4).map((e) => e.name);
+  const rest = list.length - shown.length;
+  if (rest > 0) return `${shown.join(', ')} and ${rest} more`;
+  return shown.length > 1 ? `${shown.slice(0, -1).join(', ')} and ${shown.at(-1) ?? ''}` : (shown[0] ?? '');
+}
+
+/** What the policy file does, in plain words, built from the same inputs as the file itself. */
+export function plainWords(list: Entry[], browser: PolicyBrowser, opts: PolicyOptions): string {
+  const entries = forBrowser(list, browser);
+  const allowed = entries.filter((e) => e.decision === 'approved');
+  const denied = entries.filter((e) => e.decision === 'denied');
+  // Chrome and Edge also uninstall a denied extension that is already installed.
+  const block = browser === 'chromium' ? 'Blocks and removes' : 'Blocks';
+  const out: string[] = [];
+  if (allowed.length > 0) out.push(`Allows ${names(allowed)}.`);
+  const message = `with the message "${BLOCK_MESSAGE}"`;
+  if (opts.blockAll) {
+    if (denied.length === 0) out.push(`Blocks every ${allowed.length > 0 ? 'other ' : ''}extension, ${message}`);
+    else if (browser === 'chromium') out.push(`${block} ${names(denied)}, and blocks every other extension, ${message}`);
+    else out.push(`Blocks ${names(denied)} and every other extension, ${message}`);
+  } else if (denied.length > 0) {
+    out.push(`${block} ${names(denied)}. Other extensions stay allowed.`);
+  } else if (allowed.length > 0) {
+    out.push('Other extensions stay allowed.');
+  }
+  if (opts.protect) {
+    if (browser === 'firefox') out.push('Keeps every extension off sign-in and mail pages.');
+    else if (allowed.length > 0) out.push(`Keeps ${allowed.length === 1 ? 'it' : 'them'} off sign-in and mail pages.`);
+  }
+  return out.length > 0 ? out.join(' ') : 'Changes nothing yet.';
+}

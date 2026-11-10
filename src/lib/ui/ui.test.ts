@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Axis, Report } from '@/lib/engine/types';
-import { axisNotes, axisSummary, compact, day, megabytes, metaLine, verdictWhy } from './format';
+import { classic, dozedOff, noseDown } from '@/components/LabArt';
+import { axisNotes, axisSummary, compact, day, entryLine, findingTier, libraryCount, megabytes, metaLine, verdictWhy } from './format';
 import type { Entry } from './list';
 import { keyOf, ListFileError, parseListFile, serialise, upsert } from './list';
-import { chromiumPolicy, firefoxPolicy } from './policy';
+import { chromiumPolicy, firefoxPolicy, plainWords } from './policy';
 
 const entry = (over: Partial<Entry>): Entry => ({
   store: 'chrome', id: 'eimadpbcbfnmbkopoojfekhnkhdbieeh', name: 'Dark Reader', version: '4.9.135', icon: null, decision: 'approved',
-  verdict: 'approve', reason: 'Dark mode', date: '2026-11-09', rulesVersion: 1, publisher: 'Dark Reader Ltd', ...over,
+  verdict: 'approve', reason: 'Dark mode', summary: 'All axes Low', date: '2026-11-09', rulesVersion: 1, publisher: 'Dark Reader Ltd', ...over,
 });
 
 describe('list', () => {
@@ -25,6 +26,39 @@ describe('list', () => {
     const first = bad.entries[0];
     if (first) first.icon = 'javascript:alert(1)';
     expect(() => parseListFile(JSON.stringify(bad))).toThrow('Entry 1');
+  });
+
+  it('reads lists saved before entries had a summary', () => {
+    const old = JSON.parse(serialise([entry({})])) as { entries: Record<string, unknown>[] };
+    delete old.entries[0]?.summary;
+    expect(parseListFile(JSON.stringify(old))[0]?.summary).toBe('');
+  });
+});
+
+describe('library lines', () => {
+  it('counts decisions in words and builds each row from the engine summary', () => {
+    expect(libraryCount([entry({}), entry({ id: 'b' }), entry({ id: 'c', decision: 'denied' })])).toBe(
+      'Two approved, one denied. Kept in this browser, never on our servers.',
+    );
+    expect(libraryCount([])).toBe('Nothing saved yet. Kept in this browser, never on our servers.');
+    expect(libraryCount(Array.from({ length: 12 }, (_, i) => entry({ id: String(i) })))).toMatch(/^12 approved\./);
+    expect(entryLine(entry({}))).toBe('All axes Low · Dark mode');
+    expect(entryLine(entry({ summary: '', reason: '', verdict: 'review' }))).toBe('Review verdict');
+  });
+
+  it('gives each finding the tier its points would earn on its axis', () => {
+    expect([5, 16, 36, 61].map((p) => findingTier(p, 'capability'))).toEqual(['low', 'medium', 'high', 'critical']);
+    expect([9, 10, 25, 50].map((p) => findingTier(p, 'code'))).toEqual(['low', 'medium', 'high', 'critical']);
+    expect(findingTier(0, 'reputation')).toBeNull();
+  });
+});
+
+describe('lab art', () => {
+  it('keeps the drawings intact', () => {
+    for (const [art, lines] of [[classic, 30], [noseDown, 18], [dozedOff, 20]] as const) {
+      expect(art).toMatch(/^[ ░▒▓█\n]+$/);
+      expect(art.split('\n')).toHaveLength(lines);
+    }
   });
 });
 
@@ -53,6 +87,20 @@ describe('policy files', () => {
     expect(p['*']).toMatchObject({ installation_mode: 'blocked', restricted_domains: expect.arrayContaining(['okta.com', 'mail.google.com']) as unknown });
     expect(p['addon@darkreader.org']).toEqual({ installation_mode: 'allowed' });
     expect(Object.keys(p)).toHaveLength(2);
+  });
+
+  it('says what the file does in plain words', () => {
+    const three = [...list, entry({ id: 'kbfnbcaeplbcioakkpcpgfkobkghlhen', name: 'Grammarly' })];
+    expect(plainWords(three, 'chromium', { blockAll: true, protect: false })).toBe(
+      'Allows Dark Reader and Grammarly. Blocks and removes VPN Secret, and blocks every other extension, with the message "Request extensions through IT."',
+    );
+    expect(plainWords(list, 'firefox', { blockAll: true, protect: true })).toBe(
+      'Allows Dark Reader. Blocks every other extension, with the message "Request extensions through IT." Keeps every extension off sign-in and mail pages.',
+    );
+    expect(plainWords(list, 'chromium', { blockAll: false, protect: true })).toBe(
+      'Allows Dark Reader. Blocks and removes VPN Secret. Other extensions stay allowed. Keeps it off sign-in and mail pages.',
+    );
+    expect(plainWords([], 'firefox', { blockAll: false, protect: false })).toBe('Changes nothing yet.');
   });
 });
 

@@ -17,6 +17,8 @@ export interface Entry {
   decision: Decision;
   verdict: VerdictName;
   reason: string;
+  /** The engine's verdict summary when the decision was made, such as "Capability High, all else Low". */
+  summary: string;
   /** ISO date of the decision. */
   date: string;
   rulesVersion: number;
@@ -65,10 +67,12 @@ export function parseListFile(text: string): Entry[] {
 
 function readEntry(raw: unknown): Entry | null {
   if (!isRecord(raw)) return null;
-  const { store, id, name, version, icon, decision, verdict, reason, date, rulesVersion, publisher } = raw;
+  const { store, id, name, version, icon, decision, verdict, reason, summary = '', date, rulesVersion, publisher } = raw;
   if (store !== null && !(typeof store === 'string' && STORES.has(store))) return null;
   if (typeof id !== 'string' || !/^[\w@.{}~-]{1,200}$/.test(id)) return null;
   if (typeof name !== 'string' || typeof version !== 'string' || typeof reason !== 'string' || typeof date !== 'string') return null;
+  // Lists saved before summaries existed have none.
+  if (typeof summary !== 'string') return null;
   if (decision !== 'approved' && decision !== 'denied') return null;
   if (typeof verdict !== 'string' || !VERDICTS.has(verdict)) return null;
   if (icon !== null && !(typeof icon === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(icon))) return null;
@@ -83,6 +87,7 @@ function readEntry(raw: unknown): Entry | null {
     decision,
     verdict: verdict as VerdictName,
     reason: reason.slice(0, 500),
+    summary: summary.slice(0, 300),
     date,
     rulesVersion,
     publisher: publisher === null ? null : publisher.slice(0, 200),

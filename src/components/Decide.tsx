@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import type { Report } from '@/lib/engine/types';
-import { day } from '@/lib/ui/format';
+import { day, decisionSummary } from '@/lib/ui/format';
 import type { Decision } from '@/lib/ui/list';
 import { keyOf, remove, upsert } from '@/lib/ui/list';
 import { useList } from '@/lib/ui/useList';
@@ -19,7 +19,7 @@ function Links({ report, onPick }: { report: Report; onPick: (d: Decision) => vo
     return (
       <div className="decide">
         <span>
-          <Link href="/list">{existing.decision === 'approved' ? 'Approved' : 'Denied'}</Link> {day(existing.date, true)}
+          <Link href="/library">{existing.decision === 'approved' ? 'Approved' : 'Denied'}</Link> {day(existing.date, true)}
           {stale ? ` at v${existing.version}` : ''}
         </span>
         {stale ? (
@@ -41,7 +41,7 @@ function Links({ report, onPick }: { report: Report; onPick: (d: Decision) => vo
   }
   return (
     <div className="decide">
-      <span>Add to list</span>
+      <span>Add to library</span>
       <button type="button" className="linkbtn" onClick={() => onPick('approved')}>
         Approve
       </button>
@@ -72,6 +72,7 @@ function Form({ report, decision, onDone }: { report: Report; decision: Decision
         decision,
         verdict: report.verdict,
         reason: reason.trim(),
+        summary: decisionSummary(report),
         date: new Date().toISOString().slice(0, 10),
         rulesVersion: report.rulesVersion,
         publisher: report.listing?.publisher.name ?? null,
@@ -93,7 +94,7 @@ function Form({ report, decision, onDone }: { report: Report; decision: Decision
       <button type="button" className="btn ghost" onClick={onDone}>
         Cancel
       </button>
-      {failed ? <span className="error">This browser is blocking storage, so the list can&apos;t be saved.</span> : null}
+      {failed ? <span className="error">This browser is blocking storage, so the library can&apos;t be saved.</span> : null}
     </form>
   );
 }

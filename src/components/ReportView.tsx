@@ -1,8 +1,24 @@
 'use client';
 
 import { Fragment, useState } from 'react';
-import type { Axis, Report } from '@/lib/engine/types';
-import { AXIS_NAME, axisNotes, axisSummary, compact, day, metaLine, thousands, TIER_NAME, tierFill, verdictFill, verdictName, verdictWhy } from '@/lib/ui/format';
+import type { Axis, Report, Tier } from '@/lib/engine/types';
+import {
+  AXIS_NAME,
+  axisNotes,
+  axisSummary,
+  compact,
+  day,
+  findingTier,
+  metaLine,
+  thousands,
+  TIER_NAME,
+  TIER_STEPS,
+  tierFill,
+  tierText,
+  verdictName,
+  verdictTone,
+  verdictWhy,
+} from '@/lib/ui/format';
 import { Decide } from './Decide';
 
 const ORDER: Axis['name'][] = ['capability', 'code', 'reputation', 'change'];
@@ -19,7 +35,9 @@ export function ReportView({ report }: { report: Report }) {
           <h2>Hard fail</h2>
           {report.hardFails.map((f) => (
             <div className="hard" key={f.rule}>
-              <span className="cell f5">Deny</span>
+              <span>
+                <span className="tag k5">Deny</span>
+              </span>
               <span>
                 {f.label}. {f.detail}{' '}
                 {f.source ? (
@@ -42,7 +60,7 @@ export function ReportView({ report }: { report: Report }) {
           <div className="meta">{metaLine(report)}</div>
         </div>
         <div className="vbox">
-          <div className={`verdict ${verdictFill(report.verdict)}`}>{verdictName(report.verdict)}</div>
+          <div className={`verdict tag ${verdictTone(report.verdict)}`}>{verdictName(report.verdict)}</div>
           <div className="vwhy">{verdictWhy(report)}</div>
           <Decide.Links report={report} onPick={setDeciding} />
         </div>
@@ -55,7 +73,7 @@ export function ReportView({ report }: { report: Report }) {
           const notes = axisNotes(axis);
           const expandable = axis.findings.length > 0 || notes.length > 0;
           const isOpen = expandable && !!open[name];
-          const fill = tierFill(axis.tier);
+          const scored = axis.status !== 'not-analysed' && axis.status !== 'first-review';
           return (
             <Fragment key={name}>
               <button
@@ -65,8 +83,14 @@ export function ReportView({ report }: { report: Report }) {
                 aria-expanded={expandable ? isOpen : undefined}
               >
                 <span className="name">{AXIS_NAME[name]}</span>
-                <span className={`tier cell ${fill}`}>{axis.tier ? TIER_NAME[axis.tier] : '-'}</span>
-                <span className={`pts cell ${fill}`}>{axis.status === 'not-analysed' || axis.status === 'first-review' ? '-' : axis.points}</span>
+                <span className="tier">
+                  <span className={`tw ${tierText(axis.tier)}`}>{axis.tier ? TIER_NAME[axis.tier] : '-'}</span>
+                  <TierBar tier={axis.tier} />
+                </span>
+                <span className="pts">
+                  <span className="num">{scored ? axis.points : '-'}</span>
+                  {scored ? <span className="unit">points</span> : null}
+                </span>
                 <span className="sum">{axisSummary(axis, report)}</span>
                 <span className="chev" aria-hidden="true">
                   {!expandable ? '' : isOpen ? '−' : '+'}
@@ -76,13 +100,20 @@ export function ReportView({ report }: { report: Report }) {
                 <div className="detail">
                   {axis.findings.map((f) => (
                     <div className="li" key={f.rule}>
-                      <span className="n">{f.points}</span>
-                      <span className="l">{f.label}</span>
+                      <span className="n">
+                        <span className="num">{f.points}</span>
+                      </span>
+                      <span className="l">
+                        <span className={`dot ${tierFill(findingTier(f.points, name))}`} aria-hidden="true" />
+                        <span className="lt">{f.label}</span>
+                      </span>
                     </div>
                   ))}
                   {axis.findings.length > 0 ? (
                     <div className="li total">
-                      <span className={`n ${fill}`}>{axis.points}</span>
+                      <span className="n">
+                        <span className={`num ${tierText(axis.tier)}`}>{axis.points}</span>
+                      </span>
                       <span className="l">Total</span>
                     </div>
                   ) : null}
@@ -132,14 +163,23 @@ export function ReportView({ report }: { report: Report }) {
         </div>
       ) : null}
 
-      <div className="legend">
-        <span>Tier</span>
-        <span className="c f2">Low</span>
-        <span className="c f3">Medium</span>
-        <span className="c f4">High</span>
-        <span className="c f5">Critical</span>
-      </div>
+      <p className="legend">
+        Tiers run <span className="t2">Low</span>, <span className="t3">Medium</span>, <span className="t4">High</span> and <span className="t5">Critical</span>;
+        each dot shows the tier a finding&apos;s points would earn on their own.
+      </p>
     </>
+  );
+}
+
+/** Four short segments, filled up to the tier. */
+function TierBar({ tier }: { tier: Tier | null }) {
+  const filled = tier ? TIER_STEPS[tier] : 0;
+  return (
+    <span className="bar" aria-hidden="true">
+      {[1, 2, 3, 4].map((i) => (
+        <span key={i} className={i <= filled ? `step ${tierFill(tier)}` : 'step'} />
+      ))}
+    </span>
   );
 }
 
